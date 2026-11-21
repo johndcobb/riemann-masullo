@@ -3756,7 +3756,9 @@ second-countable LCA group is quasi-complete. The example's other properties
 are `schwartzBruhat_complete`, `schwartzBruhat_nuclear`, `schwartzBruhat_montel`
 and `schwartzBruhat_reflexive` from Theorem D.1.5.7. -/
 theorem schwartzBruhat_quasiComplete :
-    QuasiCompleteSpace ℂ (SchwartzBruhat G) := by sorry
+    QuasiCompleteSpace ℂ (SchwartzBruhat G) := by
+  let : CompleteSpace (SchwartzBruhat G) := schwartzBruhat_complete
+  infer_instance
 
 end DeferredFromC1
 
