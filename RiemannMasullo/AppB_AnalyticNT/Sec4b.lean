@@ -525,7 +525,62 @@ theorem finiteConnesWeilPrincipalValue_integerUnits (v : Primes(F)) :
 /-- Paper: Remark B.4.4.6, p. 623. A finite local test agrees with its value at
 one on a neighborhood of one, so the unit-subtracted integrand vanishes there. -/
 theorem finiteWeilTest_eventually_eq_at_one (v : Primes(F)) (f : 𝒟((v.adicCompletion F)ˣ)) :
-    ∀ᶠ u in 𝓝 (1 : (v.adicCompletion F)ˣ), f.val u = f.val 1 := by sorry
+    ∀ᶠ u in 𝓝 (1 : (v.adicCompletion F)ˣ), f.val u = f.val 1 := by
+  let G := (v.adicCompletion F)ˣ
+  have hf : IsBruhatSmooth f.val := (mem_bruhatSmoothSubmodule_iff _).mp f.property.1
+  obtain ⟨k, hk, hInv, _⟩ := hf 0
+  let A : OpenCompactlyGeneratedSubgroups (PontryaginDual G) := ⟨lcaAnnihilator k, hk.2⟩
+  obtain ⟨γ, _, hγ, hker, _⟩ := lca_dualSubgroup_quotient A
+  let Q := PontryaginDual A.val
+  let : LocallyCompactSpace A.val := A.property.1.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  obtain ⟨n, ⟨charts⟩⟩ := isCompactlyGeneratedGroup_iff_dual_locallyEuclidean.mp A.property.2
+  let : ChartedSpace (EuclideanSpace ℝ (Fin n)) Q := charts
+  let : LocallyConnectedSpace Q := ChartedSpace.locallyConnectedSpace (EuclideanSpace ℝ (Fin n)) Q
+  let B : OpenSubgroup G :=
+    ⟨(v.adicCompletionIntegers F).units, Submonoid.isOpen_units (Valued.isOpen_valuationSubring _)⟩
+  let : CompactSpace B.toSubgroup := isCompact_iff_compactSpace.mp
+    (Submonoid.units_isCompact (isCompact_iff_compactSpace.mpr (compactSpace_adicCompletionIntegers v)))
+  let j : B.toSubgroup → v.adicCompletion F := Units.val ∘ Subtype.val
+  have hj : Topology.IsEmbedding j :=
+    (Units.isEmbedding_val₀ (G₀ := v.adicCompletion F)).comp Topology.IsEmbedding.subtypeVal
+  let η : B.toSubgroup →ₜ* Q := γ.comp ⟨B.toSubgroup.subtype, continuous_subtype_val⟩
+  have hη : Continuous η := η.continuous
+  have hηOpen : IsOpenMap η := hγ.isOpenMap.comp B.isOpen.isOpenEmbedding_subtypeVal.isOpenMap
+  have hSmall (U : Set Q) (hU : U ∈ 𝓝 (1 : Q)) : ∃ V : OpenSubgroup Q, (V : Set Q) ⊆ U := by
+    have hpre : η ⁻¹' U ∈ 𝓝 (1 : B.toSubgroup) :=
+      hη.continuousAt.preimage_mem_nhds (by simpa only [map_one] using hU)
+    rw [hj.isInducing.nhds_eq_comap] at hpre
+    obtain ⟨S, hS, hSsub⟩ := mem_comap.mp hpre
+    let ν : Valuation (v.adicCompletion F) (WithZero (Multiplicative ℤ)) := Valued.v
+    obtain ⟨r, hr⟩ := (Valued.mem_nhds (Γ₀ := WithZero (Multiplicative ℤ))).mp hS
+    let W := (fun x : B.toSubgroup ↦ j x - j 1) ⁻¹' {y | ν.restrict y < r.val}
+    have hW : IsClopen W :=
+      (Valued.isClopen_ball (v.adicCompletion F) r.val).preimage
+        (hj.continuous.sub continuous_const)
+    have h1W : (1 : B.toSubgroup) ∈ W := by
+      change ν.restrict (j 1 - j 1) < r.val
+      rw [sub_self, map_zero]
+      exact pos_iff_ne_zero.mpr r.ne_zero
+    obtain ⟨V, hV⟩ := IsTopologicalGroup.exist_openSubgroup_sub_clopen_nhds_of_one hW h1W
+    refine ⟨⟨V.toSubgroup.map η.toMonoidHom, hηOpen _ V.isOpen⟩, ?_⟩
+    rintro _ ⟨x, hx, rfl⟩
+    exact hSsub (hr (hV hx))
+  have hComponent : connectedComponent (1 : Q) = {1} := by
+    refine subset_antisymm ?_ (singleton_subset_iff.mpr mem_connectedComponent)
+    intro y hy
+    by_contra hne
+    have h1y : (1 : Q) ∈ ({y} : Set Q)ᶜ :=
+      fun h ↦ hne (mem_singleton_iff.mpr (mem_singleton_iff.mp h).symm)
+    obtain ⟨V, hV⟩ := hSmall _ (isOpen_compl_singleton.mem_nhds h1y)
+    have hyV := isPreconnected_connectedComponent.subset_isClopen V.isClopen
+      ⟨1, mem_connectedComponent, V.one_mem⟩ hy
+    exact (hV hyV) (mem_singleton y)
+  have hOne : IsOpen ({1} : Set Q) := hComponent ▸ isOpen_connectedComponent
+  have hkOpen : IsOpen (k : Set G) := by
+    rw [← lcaDualAnnihilator_annihilator k hk.1, ← hker]
+    exact hOne.preimage γ.continuous
+  filter_upwards [hkOpen.mem_nhds k.one_mem] with u hu
+  simpa only [mul_one] using hInv ⟨u, hu⟩ 1
 
 end PrincipalValues
 
