@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.AppB_AnalyticNT.Sec1
 public import Mathlib.Analysis.Calculus.LogDeriv
 public import Mathlib.NumberTheory.ArithmeticFunction.VonMangoldt
+import RiemannMasullo.ForMathlib.NumberTheory.EulerProduct.Basic
 
 /-!
 # Classical zero-free regions for Hecke L-functions
@@ -75,7 +76,107 @@ theorem finiteHeckeL_hasSum_ideals (χ : U[F]) (s : halfPlane) :
     HasSum (fun I : {I : Ideal (𝓞 F) // I ≠ ⊥} ↦
       heckeIdealValue (ideleClassNormTwist χ 0) I.val / (I.val.absNorm : ℂ) ^ (s : ℂ))
       (finiteHeckeL χ s) := by
-  sorry
+  classical
+  let a (v : HeightOneSpectrum (𝓞 F)) : ℂ :=
+    if (ideleClassNormTwist χ 0).IsUnramifiedAt v then
+      (ideleClassNormTwist χ 0).localValue v else 0
+  let factor (I : Ideal (𝓞 F)) (v : HeightOneSpectrum (𝓞 F)) :=
+    a v ^ multiplicity v.asIdeal I
+  let value := heckeIdealValue (ideleClassNormTwist χ 0)
+  have hzero : value 0 = 0 := by simp [value, heckeIdealValue]
+  have hvalue {I : Ideal (𝓞 F)} (hI : I ≠ 0) : value I = ∏ᶠ v, factor I v := by
+    have hI' : I ≠ ⊥ := by simpa only [Ideal.zero_eq_bot] using hI
+    simp only [value, heckeIdealValue, ite_eq_right hI', factor, a]
+  have hsupport (I : Ideal (𝓞 F)) : (factor I).HasFiniteMulSupport :=
+    UniqueFactorizationMonoid.hasFiniteMulSupport_fun_pow_multiplicity a
+      HeightOneSpectrum.asIdeal_injective HeightOneSpectrum.irreducible
+  let c : Ideal (𝓞 F) →*₀ ℂ :=
+    { toFun := value
+      map_zero' := hzero
+      map_one' := by
+        rw [hvalue one_ne_zero]
+        exact finprod_eq_one_of_forall_eq_one fun v ↦ by simp only [factor, multiplicity_one_right, pow_zero]
+      map_mul' := by
+        intro I J
+        by_cases hI : I = 0
+        · simp only [hI, zero_mul, hzero]
+        by_cases hJ : J = 0
+        · simp only [hJ, mul_zero, hzero]
+        rw [hvalue (mul_ne_zero hI hJ), hvalue hI, hvalue hJ,
+          ← finprod_mul_distrib (hsupport I) (hsupport J)]
+        apply finprod_congr
+        intro v
+        simp only [factor, multiplicity_mul v.prime
+          (FiniteMultiplicity.of_prime_left v.prime (mul_ne_zero hI hJ)), pow_add] }
+  have hd (v w : HeightOneSpectrum (𝓞 F)) (h : v.asIdeal ∣ w.asIdeal) : v = w :=
+    HeightOneSpectrum.ext (w.isMaximal.eq_of_le v.isPrime.ne_top (Ideal.dvd_iff_le.mp h)).symm
+  have hcPrime (v : HeightOneSpectrum (𝓞 F)) : c v.asIdeal = a v := by
+    change value v.asIdeal = _
+    rw [hvalue v.prime.ne_zero, finprod_eq_single _ v]
+    · simp only [factor, multiplicity_self (FiniteMultiplicity.of_prime_left v.prime v.prime.ne_zero),
+        pow_one]
+    · intro w hw
+      simp only [factor, multiplicity_eq_zero_of_not_dvd (fun h ↦ hw (hd w v h)), pow_zero]
+  have ha (v : HeightOneSpectrum (𝓞 F)) : ‖a v‖ ≤ 1 := by
+    by_cases h : (ideleClassNormTwist χ 0).IsUnramifiedAt v <;>
+      simp [a, h, norm_ideleClassNormTwist_zero_localValue]
+  have hc (I : Ideal (𝓞 F)) : ‖c I‖ ≤ 1 := by
+    by_cases hI : I = 0
+    · rw [hI, map_zero, norm_zero]
+      exact zero_le_one
+    change ‖value I‖ ≤ 1
+    rw [hvalue hI, finprod_eq_prod _ (hsupport I), norm_prod]
+    exact Finset.prod_le_one₀ (fun v _ ↦ norm_nonneg _) fun v _ ↦ by
+      simp only [factor, norm_pow]
+      exact pow_le_one₀ (norm_nonneg _) (ha v)
+  let term : Ideal (𝓞 F) →*₀ ℂ :=
+    { toFun := fun I ↦ c I * ((I.absNorm : ℝ) : ℂ) ^ (-(s : ℂ))
+      map_zero' := by rw [map_zero c, zero_mul]
+      map_one' := by rw [map_one c, map_one, Nat.cast_one, Complex.ofReal_one,
+        Complex.one_cpow, mul_one]
+      map_mul' := by
+        intro I J
+        rw [map_mul c, map_mul, Nat.cast_mul, Complex.ofReal_mul,
+          Complex.mul_cpow_ofReal_nonneg (Nat.cast_nonneg I.absNorm) (Nat.cast_nonneg J.absNorm)]
+        ring }
+  have hr : 1 < (s : ℂ).re := s.property
+  have hbound (I : Ideal (𝓞 F)) : ‖term I‖ ≤ (I.absNorm : ℝ) ^ (-(s : ℂ).re) := by
+    by_cases hI : I = 0
+    · rw [hI, map_zero, norm_zero]
+      positivity
+    have hN : (0 : ℝ) < I.absNorm := by
+      exact_mod_cast Nat.pos_of_ne_zero (Ideal.absNorm_eq_zero_iff.not.mpr
+        (by simpa only [Ideal.zero_eq_bot] using hI))
+    change ‖c I * ((I.absNorm : ℝ) : ℂ) ^ (-(s : ℂ))‖ ≤ _
+    rw [norm_mul, Complex.norm_cpow_eq_rpow_re_of_pos hN, Complex.neg_re]
+    exact mul_le_of_le_one_left (Real.rpow_nonneg hN.le _) (hc I)
+  have hsum : Summable (fun I ↦ ‖term I‖) :=
+    (summable_absNorm_rpow F hr).of_nonneg_of_le (fun _ ↦ norm_nonneg _) hbound
+  have hprod := hasProd_eulerFactors_of_summable
+    (fun v : HeightOneSpectrum (𝓞 F) ↦ v.asIdeal) (fun v ↦ v.prime) hd
+    (fun I hI h1 ↦ by
+      obtain ⟨J, hJ, hIJ⟩ := I.exists_le_maximal (by simpa only [Ideal.one_eq_top] using h1)
+      exact ⟨⟨J, hJ.isPrime, fun h ↦ hI (le_bot_iff.mp (h ▸ hIJ))⟩, Ideal.dvd_iff_le.mpr hIJ⟩)
+    term hsum (fun v ↦ by
+      have hv : 1 < (v.asIdeal.absNorm : ℝ) := by exact_mod_cast NumberField.HeightOneSpectrum.one_lt_absNorm v
+      have hlt := (hbound v.asIdeal).trans_lt
+        (Real.rpow_lt_one_of_one_lt_of_neg hv (by linarith : -(s : ℂ).re < 0))
+      exact fun h ↦ (ne_of_lt hlt) (by rw [h, norm_one]))
+  have hlocal (v : HeightOneSpectrum (𝓞 F)) :
+      finiteHeckeEulerFactor χ v s = (1 - term v.asIdeal)⁻¹ := by
+    change _ = (1 - c v.asIdeal * ((v.asIdeal.absNorm : ℝ) : ℂ) ^ (-(s : ℂ)))⁻¹
+    rw [hcPrime, Complex.ofReal_natCast]
+    by_cases h : (ideleClassNormTwist χ 0).IsUnramifiedAt v <;> simp [finiteHeckeEulerFactor, a, h]
+  have hEq : (∑' I, term I) = finiteHeckeL χ s :=
+    (hprod.congr_fun hlocal).unique (finiteHeckeL_hasProd χ s)
+  have hsupport' : Function.support (term : Ideal (𝓞 F) → ℂ) ⊆ {I | I ≠ ⊥} := by
+    intro I hI hBot
+    exact hI ((show I = 0 by simpa only [Ideal.zero_eq_bot] using hBot) ▸ term.map_zero)
+  refine ((hasSum_subtype_iff_of_support_subset hsupport').mpr
+    (hEq ▸ hsum.of_norm.hasSum)).congr_fun fun I ↦ ?_
+  change value I.val / (I.val.absNorm : ℂ) ^ (s : ℂ) =
+    value I.val * ((I.val.absNorm : ℝ) : ℂ) ^ (-(s : ℂ))
+  rw [Complex.ofReal_natCast, Complex.cpow_neg, div_eq_mul_inv]
 
 /-- Paper: Equation (B.6.1.3), p. 636. The summatory function adds the values
 at nonzero integral ideals of norm at most `x`. -/
