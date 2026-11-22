@@ -68,7 +68,46 @@ theorem modulatedCyclicAnnihilatorFiber_subset :
     ∃ k : Subgroup K, IsCompact (k : Set K) ∧ (lcaAnnihilator k).FG ∧
       ω ∈ lcaAnnihilator k ∧
       modulatedCyclicAnnihilatorFiber m ω γ ⊆
-        (lcaAnnihilator (Subgroup.zpowers γ ⊔ k.map (K).subtype) : Set (PontryaginDual G)) := by sorry
+        (lcaAnnihilator (Subgroup.zpowers γ ⊔ k.map (K).subtype) : Set (PontryaginDual G)) := by
+  let : CompactSpace K := isCompact_iff_compactSpace.mp hm.isCompact_ker
+  let J := Subgroup.zpowers ω
+  let k := lcaDualAnnihilator J
+  have hk : IsClosed (k : Set K) := by
+    rw [show (k : Set K) = ⋂ χ : J, χ.val ⁻¹' ({1} : Set Circle) by
+      ext x
+      change x ∈ k ↔ _
+      simpa only [mem_iInter, mem_preimage, mem_singleton_iff] using
+        mem_lcaDualAnnihilator_iff J x]
+    exact isClosed_iInter fun χ ↦ isClosed_singleton.preimage χ.val.continuous
+  have hAnn : lcaAnnihilator k = J := by
+    obtain ⟨e, he⟩ := pontryaginDual_bidual (G := K)
+    have hEval (x : K) : e x ∈ lcaAnnihilator J ↔ x ∈ k := by
+      change _ ↔ x ∈ lcaDualAnnihilator J
+      simp only [mem_lcaAnnihilator_iff, mem_lcaDualAnnihilator_iff, he]
+    ext χ
+    conv_rhs => rw [← lcaDualAnnihilator_annihilator J (isClosed_discrete _)]
+    rw [mem_lcaAnnihilator_iff, mem_lcaDualAnnihilator_iff]
+    constructor
+    · intro h ψ
+      obtain ⟨x, hx⟩ := e.surjective ψ.val
+      have hmem : x ∈ k := (hEval x).mp (hx.symm ▸ ψ.property)
+      rw [← hx, he]
+      exact h ⟨x, hmem⟩
+    · intro h x
+      have hx := h ⟨e x.val, (hEval x.val).mpr x.property⟩
+      change e x.val χ = 1 at hx
+      rwa [he] at hx
+  have hω : ω ∈ lcaAnnihilator k := hAnn.symm ▸ Subgroup.mem_zpowers ω
+  refine ⟨k, hk.isCompact, ?_, hω, ?_⟩
+  · rw [hAnn]
+    infer_instance
+  · intro ξ hξ
+    obtain ⟨hγ, hres⟩ := (mem_modulatedCyclicAnnihilatorFiber_iff m ω γ ξ).mp hξ
+    have hker : Subgroup.zpowers γ ⊔ k.map (K).subtype ≤ ξ.toMonoidHom.ker := by
+      refine sup_le (Subgroup.zpowers_le.mpr hγ) (Subgroup.map_le_iff_le_comap.mpr ?_)
+      intro y hy
+      exact (hres y).trans ((mem_lcaAnnihilator_iff k ω).mp hω ⟨y, hy⟩)
+    exact (mem_lcaAnnihilator_iff _ ξ).mpr fun x ↦ hker x.property
 
 section Difference
 
