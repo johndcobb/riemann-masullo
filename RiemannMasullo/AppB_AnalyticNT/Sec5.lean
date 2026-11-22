@@ -200,7 +200,8 @@ image have the same volume. Jordan measurability is expressed by the null relati
 theorem volume_interior_torusQuotient_image [NeZero N] (U : Set (unitHalfOpenCube N))
     (hU : volume (Subtype.val '' frontier U) = 0) :
     volume (interior (torusQuotient N '' (Subtype.val '' U))) =
-      volume (torusQuotient N '' (Subtype.val '' U)) := by sorry
+      volume (torusQuotient N '' (Subtype.val '' U)) :=
+  measure_interior_of_null_frontier (volume_frontier_torusQuotient_image U hU)
 
 /-- Paper: Remark B.5.2.3(2), p. 628.
 The interior of the torus image of a Jordan-measurable set has null frontier. -/
