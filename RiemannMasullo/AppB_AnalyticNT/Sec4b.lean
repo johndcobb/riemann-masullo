@@ -842,6 +842,80 @@ theorem finiteConnesWeilPrincipalValue_eq_finitePart (v : Primes(F))
         ((differentExp(v) : ℝ) * Real.log q(v) : ℝ) * f.val 1 :=
   by sorry
 
+/-- Evaluating the finite part on a compact open subgroup indicator gives the correction term. -/
+private theorem finiteConnesWeilPrincipalValue_integerUnits_test
+    {G : Type*} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G]
+    [T2Space G] [LocallyCompactSpace G] [MeasurableSpace G] [BorelSpace G]
+    (U : Subgroup G) (hU : IsOpen (U : Set G)) (hUc : IsCompact (U : Set G))
+    (μ : Measure G) (num den : G → ℂ) (eval : 𝒟(G) → ℂ) (scale correction : ℂ)
+    (heval : ∀ f : 𝒟(G), eval f =
+      scale * ((∫ u in (U : Set G)ᶜ, f.val u * num u / den u ∂μ) +
+        (∫ u in (U : Set G), (f.val u - f.val 1) * num u / den u ∂μ)) -
+      correction * f.val 1) :
+    ∃ f : 𝒟(G), f.val = (U : Set G).indicator (fun _ ↦ 1) ∧ eval f = -correction := by
+  classical
+  let g : G → ℂ := (U : Set G).indicator (fun _ ↦ 1)
+  let : CompactSpace (lcaAnnihilator U) :=
+    isCompact_iff_compactSpace.mp (isCompact_lcaAnnihilator U hU)
+  have hClosed : IsClosed (U : Set G) := U.isClosed_of_isOpen hU
+  have hSmooth : IsBruhatSmooth g := by
+    intro p
+    refine ⟨U, ⟨hClosed, isOpen_lcaAnnihilator U hUc, isCompactlyGeneratedGroup_of_compact⟩,
+      ?_, ?_⟩
+    · intro h x
+      have hmem : h.val * x ∈ (U : Set G) ↔ x ∈ (U : Set G) := by
+        refine ⟨fun hx ↦ ?_, U.mul_mem h.property⟩
+        change x ∈ U
+        simpa only [inv_mul_cancel_left] using U.mul_mem (U.inv_mem h.property) hx
+      simp only [g, indicator_apply, hmem]
+    · intro a ha
+      let f₀ : a.quotient → ℂ := ({1} : Set a.quotient).indicator (fun _ ↦ 1)
+      refine ⟨f₀, fun x ↦ ?_, ?_⟩
+      · simp only [f₀, g, indicator_apply, mem_singleton_iff, a.quotient_mk_eq_one, ha]
+        rfl
+      · intro e z b
+        let : DiscreteTopology a.quotient := QuotientGroup.discreteTopology (by
+          rw [ha]
+          exact hU.preimage continuous_subtype_val)
+        let X := EuclideanSpace ℝ (Fin e.realDim) × EuclideanSpace ℝ (Fin e.torusDim)
+        let q : X → a.quotient := fun x ↦ e.equiv.symm (Multiplicative.ofAdd (elementaryCover x z b))
+        have hq : Continuous q := e.equiv.symm.continuous.comp
+          (continuous_fst.prodMk ((continuous_pi fun j ↦ (AddCircle.continuous_mk' (1 : ℝ)).comp
+            ((PiLp.continuous_apply 2 _ j).comp continuous_snd)).prodMk continuous_const))
+        change ContDiff ℝ (p : ℕ∞) (fun x ↦ f₀ (q x))
+        have heq : (fun x ↦ f₀ (q x)) = fun _ : X ↦ f₀ (q 0) :=
+          funext fun x ↦ congrArg f₀ (TotallyDisconnectedSpace.eq_of_continuous q hq x 0)
+        rw [heq]
+        exact contDiff_const
+  have hSub : Function.support g ⊆ (U : Set G) := support_indicator_subset
+  have hSupport : HasCompactSupport g :=
+    hUc.of_isClosed_subset isClosed_closure (closure_minimal hSub hClosed)
+  let f : 𝒟(G) := ⟨g, (mem_bruhatSmoothSubmodule_iff _).mpr hSmooth, hSupport⟩
+  have hOne : g 1 = 1 := indicator_of_mem U.one_mem (fun _ : G ↦ (1 : ℂ))
+  have hOut : (∫ u in (U : Set G)ᶜ, f.val u * num u / den u ∂μ) = 0 := by
+    change (∫ u in (U : Set G)ᶜ, g u * num u / den u ∂μ) = 0
+    calc
+      _ = ∫ _u in (U : Set G)ᶜ, (0 : ℂ) ∂μ := by
+        apply setIntegral_congr_fun hU.measurableSet.compl
+        intro u hu
+        have hgu : g u = 0 := indicator_of_notMem hu _
+        simp only [hgu, zero_mul, zero_div]
+      _ = 0 := by simp
+  have hIn : (∫ u in (U : Set G), (f.val u - f.val 1) * num u / den u ∂μ) = 0 := by
+    change (∫ u in (U : Set G), (g u - g 1) * num u / den u ∂μ) = 0
+    calc
+      _ = ∫ _u in (U : Set G), (0 : ℂ) ∂μ := by
+        apply setIntegral_congr_fun hU.measurableSet
+        intro u hu
+        have hgu : g u = 1 := indicator_of_mem hu (fun _ : G ↦ (1 : ℂ))
+        simp only [hgu, hOne, sub_self, zero_mul, zero_div]
+      _ = 0 := by simp
+  refine ⟨f, rfl, ?_⟩
+  have hValue := heval f
+  have hfOne : f.val 1 = 1 := hOne
+  rw [hOut, hIn, hfOne, add_zero, mul_zero, zero_sub, mul_one] at hValue
+  exact hValue
+
 /-- Paper: Lemma B.4.4.5, p. 622. The integer-unit indicator detects
 the different contribution to the Fourier-defined principal value. The
 unit-subtracted finite part is zero on this test. -/
@@ -849,7 +923,19 @@ theorem finiteConnesWeilPrincipalValue_integerUnits (v : Primes(F)) :
     ∃ f : 𝒟((v.adicCompletion F)ˣ),
       f.val = indicator ((O(v)).units : Set (v.adicCompletion F)ˣ) (fun _ ↦ 1) ∧
       finiteWeilScale(v) * finiteConnesWeilPrincipalValue v 1 f =
-        -(((differentExp(v) : ℝ) * Real.log q(v) : ℝ) : ℂ) := by sorry
+        -(((differentExp(v) : ℝ) * Real.log q(v) : ℝ) : ℂ) := by
+  let U : Subgroup (v.adicCompletion F)ˣ := (O(v)).units
+  have hU : IsOpen (U : Set (v.adicCompletion F)ˣ) :=
+    Submonoid.isOpen_units (Valued.isOpen_valuationSubring _)
+  have hUc : IsCompact (U : Set (v.adicCompletion F)ˣ) := Submonoid.units_isCompact
+    (isCompact_iff_compactSpace.mpr (compactSpace_adicCompletionIntegers v))
+  let : BorelSpace (v.adicCompletion F)ˣ := ⟨rfl⟩
+  exact finiteConnesWeilPrincipalValue_integerUnits_test U hU hUc (μ𝔭(v))
+    (fun u : (v.adicCompletion F)ˣ ↦ (Real.sqrt ‖u.val‖ : ℂ))
+    (fun u : (v.adicCompletion F)ˣ ↦ ((‖1 - u.val‖ : ℝ) : ℂ))
+    (fun f ↦ finiteWeilScale(v) * finiteConnesWeilPrincipalValue v 1 f)
+    finiteWeilScale(v) (((differentExp(v) : ℝ) * Real.log q(v) : ℝ) : ℂ)
+    (fun f ↦ (finiteConnesWeilPrincipalValue_eq_finitePart v f).2.2)
 
 /-- Paper: Remark B.4.4.6, p. 623. A finite local test agrees with its value at
 one on a neighborhood of one, so the unit-subtracted integrand vanishes there. -/
