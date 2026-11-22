@@ -133,7 +133,14 @@ theorem schwartzBruhatUnitRepresentation_map_one :
 /-- Paper: Remark 6.1.2.3, p. 289.
 Pullback by the inverse of a product agrees with the composition of the two translations. -/
 theorem schwartzBruhatUnitRepresentation_map_mul (g h : Rˣ) :
-    translate (g * h) = (translate g : Module.End ℂ ℬ(R)) * translate h := by sorry
+    translate (g * h) = (translate g : Module.End ℂ ℬ(R)) * translate h := by
+  apply LinearMap.ext
+  intro f
+  apply Subtype.ext
+  funext x
+  change f.val (Multiplicative.ofAdd (((g * h)⁻¹ : Rˣ).val * x.toAdd)) =
+    f.val (Multiplicative.ofAdd ((h⁻¹ : Rˣ).val * ((g⁻¹ : Rˣ).val * x.toAdd)))
+  rw [mul_inv_rev, Units.val_mul, mul_assoc]
 
 /-- Paper: Remark 6.1.2.3, p. 289.
 The inverse-multiplication pullback action on additive Schwartz–Bruhat functions,
