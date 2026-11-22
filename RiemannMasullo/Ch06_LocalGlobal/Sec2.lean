@@ -329,12 +329,53 @@ theorem mem_finitePuncturedThetaTestSpace (v : V) (f : ℬ(L(v))) :
 
 local notation "ℬ₀(" v ")" => ↥(finitePuncturedThetaTestSpace v)
 
+/-- A locally constant compactly supported field test vanishing at zero is integrable
+after inverse translation on the unit group and multiplication by a continuous factor. -/
+private theorem finiteStandardThetaAverage_integrable_of_locallyConstant
+    {K : Type*} [NormedField K] [MeasurableSpace Kˣ] [BorelSpace Kˣ]
+    (μ : Measure Kˣ) [IsFiniteMeasureOnCompacts μ] (test : K → ℂ)
+    (hloc : IsLocallyConstant test) (hcompact : HasCompactSupport test) (hzero : test 0 = 0)
+    (c : Kˣ → ℂ) (hc : Continuous c) (x : Kˣ) :
+    Integrable (fun g : Kˣ ↦ test (g⁻¹ * x).val * c g) μ := by
+  have hclosed : IsClosed (Function.support test) := (hloc.isClopen_fiber 0).2.isClosed_compl
+  have hrange : tsupport test ⊆ Set.range (Units.val : Kˣ → K) := by
+    intro y hy
+    have hmem : y ∈ Function.support test := by
+      rwa [tsupport, hclosed.closure_eq] at hy
+    have hy0 : y ≠ 0 := by
+      rintro rfl
+      exact hmem hzero
+    exact ⟨Units.mk0 y hy0, rfl⟩
+  have hpre : IsCompact (Units.val ⁻¹' tsupport test : Set Kˣ) := by
+    rw [(Units.isEmbedding_val₀ (G₀ := K)).isCompact_iff,
+      Set.image_preimage_eq_of_subset hrange]
+    exact hcompact
+  let unitTest : Kˣ → ℂ := test ∘ Units.val
+  have hsupport : HasCompactSupport unitTest :=
+    hpre.of_isClosed_subset (isClosed_tsupport _)
+      (tsupport_comp_subset_preimage test Units.continuous_val)
+  let shift : Kˣ ≃ₜ Kˣ := (Homeomorph.inv Kˣ).trans (Homeomorph.mulRight x)
+  have hcont : Continuous (unitTest ∘ shift) :=
+    (hloc.continuous.comp Units.continuous_val).comp shift.continuous
+  change Integrable (fun g : Kˣ ↦ (unitTest ∘ shift) g * c g) μ
+  exact (hcont.mul hc).integrable_of_hasCompactSupport (hsupport.comp_homeomorph shift).mul_right
+
 /-- Paper: (6.2.2.4), p. 299.
 The finite-place integral of a compactly supported test on the punctured field is absolutely
 integrable for every translation and unitary character. -/
 theorem finiteStandardThetaAverage_integrable (v : V) (χ : PontryaginDual (L(v))ˣ)
     (f : ℬ₀(v)) (x : (L(v))ˣ) :
-    Integrable (fun g : (L(v))ˣ ↦ f.val (Multiplicative.ofAdd (g⁻¹ * x).val) * (χ g : ℂ)) (μ(v)) := by sorry
+    Integrable (fun g : (L(v))ˣ ↦ f.val (Multiplicative.ofAdd (g⁻¹ * x).val) * (χ g : ℂ)) (μ(v)) := by
+  let test (y : L(v)) : ℂ := f.val (Multiplicative.ofAdd y)
+  have htest : IsLocallyConstant test ∧ HasCompactSupport test :=
+    (mem_finitePlaceSchwartz_iff F v test).mp ⟨f.val, fun _ ↦ rfl⟩
+  have hzero : test 0 = 0 := (mem_finitePuncturedThetaTestSpace v f.val).mp f.property
+  have hχ : Continuous (fun g : (L(v))ˣ ↦ (χ g : ℂ)) :=
+    continuous_subtype_val.comp χ.continuous
+  let : BorelSpace (L(v))ˣ := ⟨rfl⟩
+  let : (μ(v)).IsHaarMeasure := finiteLocalMultiplicativeTamagawaMeasure_isHaarMeasure v
+  exact finiteStandardThetaAverage_integrable_of_locallyConstant (μ(v)) test htest.1 htest.2 hzero
+    (fun g : (L(v))ˣ ↦ (χ g : ℂ)) hχ x
 
 /-- Paper: (6.2.2.4), p. 299.
 The finite-place convolution formula specifies a continuous linear map on
