@@ -347,7 +347,57 @@ theorem torusHittingTimes_tendsto_forward [NeZero N] (τ : Fin N → ℝ)
     μ (frontier V) = 0 →
       Tendsto (fun T : ℝ ↦
         volume.real (torusHittingTimes (fun t ↦ t • τ) (Icc 0 T) (Subtype.val '' U)) /
-          T) atTop (𝓝 (μ.real V)) := by sorry
+          T) atTop (𝓝 (μ.real V)) := by
+  intro V hfront
+  let q : (Fin N → ℝ) → UnitAddTorus (Fin N) := torusQuotient N
+  have hq : Continuous q := (torusQuotient N).continuous
+  have hV : MeasurableSet V := by
+    have hC : MeasurableSet (unitHalfOpenCube N) :=
+      MeasurableSet.univ_pi' fun _ ↦ measurableSet_Ico
+    have hinj : InjOn q (unitHalfOpenCube N) := by
+      intro x hx y hy hxy
+      funext i
+      exact AddCircle.injOn_coe_Ico (p := (1 : ℝ)) 0
+        (by simpa only [zero_add] using hx i) (by simpa only [zero_add] using hy i)
+        (congrFun hxy i)
+    have hCU : MeasurableSet (Subtype.val '' U) :=
+      (MeasurableEmbedding.subtype_coe hC).measurableSet_image.2 hU.measurableSet
+    exact (hCU.image_of_measurable_injOn hq.measurable
+      (hinj.mono (Subtype.coe_image_subset _ _))).preimage measurable_subtype_coe
+  let F : ℝ → torusFlowClosure τ := torusFlowInClosure τ
+  have hF : Continuous F := (torusFlow τ).continuous.subtype_mk _
+  let u : torusFlowClosure τ → ℂ := V.indicator (fun _ ↦ 1)
+  have hu : TorusRiemannIntegrable μ u := by
+    refine ⟨⟨1, fun x ↦ ?_⟩, ?_⟩
+    · by_cases hx : x ∈ V <;> simp [u, hx]
+    · have hn : ∀ᵐ x ∂μ, x ∉ frontier V := by
+        simpa only [ae_iff, not_not, Set.ofPred_mem_eq] using hfront
+      filter_upwards [hn] with x hx
+      exact continuousOn_const.continuousAt_indicator hx
+  have hlim : Tendsto (fun T : ℝ ↦ T⁻¹ • ∫ t in 0..T, u (F t))
+      atTop (𝓝 (∫ x, u x ∂μ)) :=
+    kroneckerWeyl_riemannIntegrable_forward τ μ u hu
+      ((measurable_const.indicator hV).comp hF.measurable).aestronglyMeasurable
+  have hmean : (∫ x, u x ∂μ) = (μ.real V : ℂ) := by
+    change (∫ x, V.indicator (fun _ ↦ (1 : ℂ)) x ∂μ) = _
+    rw [integral_indicator_const _ hV, Complex.real_smul, mul_one]
+  rw [hmean] at hlim
+  have hlimRe : Tendsto (fun T : ℝ ↦ (T⁻¹ • ∫ t in 0..T, u (F t)).re)
+      atTop (𝓝 (μ.real V)) := by
+    simpa only [Function.comp_def, Complex.ofReal_re] using
+      (Complex.continuous_re.continuousAt (x := (μ.real V : ℂ))).tendsto.comp hlim
+  let W : Set ℝ := F ⁻¹' V
+  have hW : MeasurableSet W := hV.preimage hF.measurable
+  have hIndicator : (fun t ↦ u (F t)) = W.indicator (fun _ ↦ (1 : ℂ)) :=
+    funext fun t ↦ (Set.indicator_comp_right F (s := V) (g := fun _ ↦ (1 : ℂ)) (x := t)).symm
+  refine hlimRe.congr' ?_
+  filter_upwards [eventually_ge_atTop (0 : ℝ)] with T hT
+  have hHits : torusHittingTimes (fun t ↦ t • τ) (Icc 0 T) (Subtype.val '' U) =
+      W ∩ Icc 0 T := inter_comm _ _
+  rw [intervalIntegral.integral_of_le hT, ← integral_Icc_eq_integral_Ioc,
+    hIndicator, integral_indicator_const _ hW, measureReal_restrict_apply hW, ← hHits]
+  rw [Complex.real_smul, Complex.real_smul, mul_one, ← Complex.ofReal_mul, Complex.ofReal_re,
+    div_eq_mul_inv, mul_comm]
 
 -- TODO(paper-gap): Remark B.5.2.5 does not state the discrete versions. The discrete orbit
 -- closure can be disconnected, so the continuous-time dimension claim cannot be reused verbatim.
